@@ -18,78 +18,67 @@ MABs are a class of problems where you must make choices over a space of possibi
 ![](/images/multiarmbandit_2.png "AB and MAB")
 *An illustration of phases of an A/B Test (left) and a Multi-Arm Bandit policy (right). Photos from automizy.com*
 
+The central tension in these problems comes from the exploration-exploitation dilemma, and each policy has its own specific tradeoffs in regards to it.
 
+In this post, the policies I'll focus on are:
 
-Here's the table of contents:
+- Epsilon-Greedy
+- Thompson Sampling
 
-1. TOC
-{:toc}
-
-## Basic setup
-
-Jekyll requires blog post files to be named according to the following format:
-
-`YEAR-MONTH-DAY-filename.md`
-
-Where `YEAR` is a four-digit number, `MONTH` and `DAY` are both two-digit numbers, and `filename` is whatever file name you choose, to remind yourself what this post is about. `.md` is the file extension for markdown files.
-
-The first line of the file should start with a single hash character, then a space, then your title. This is how you create a "*level 1 heading*" in markdown. Then you can create level 2, 3, etc headings as you wish but repeating the hash character, such as you see in the line `## File names` above.
-
-## Basic formatting
-
-You can use *italics*, **bold**, `code font text`, and create [links](https://www.markdownguide.org/cheat-sheet/). Here's a footnote [^1]. Here's a horizontal rule:
+So, let's begin.
 
 ---
 
-## Lists
+### Epsilon-Greedy
 
-Here's a list:
+Returning to the landing page hypothetical, let a single round encompass the total number of views and conversions over some period - 6 hrs, 1 day, 1 week, etc. With A/B testing we'd wait for our experiment to reach some pre-defined stopping criterion - usually either statistical significance, minimum sample size for each variation, or a certain number of days/rounds - prior to choosing the best performing variation.
 
-- item 1
-- item 2
+With a ɛ-greedy policy, after some initial round or two of pure exploration, we would always choose the best variation - the variation with the highest expected reward - at the start of any round, except for ɛ% of the time, where we choose a random variation from the rest.
 
-And a numbered list:
+![](/images/multiarmbandit_3.png "epsilon-greedy")
+*A single epsilon-greedy round. Photo from yhat*
 
-1. item 1
-1. item 2
+If we consider it from the point of view of the loss incurred from sending traffic to a lower performing variation, then ɛ-greedy improves on the A/B test by ensuring that (1 - ɛ)% of the time, only the best performing variation is being seeded with visitors. The downside to that is the issue of local optima, or the fact that since the rewards are stochastic a 'hot streak' by a lower-quality variation at the start of the experiment might lead to it being incorrectly routed a majority of the traffic.
 
-## Boxes and stuff
+To some extent, the algorithm counters that by ensuring that exploration occurs ɛ% of the time, so even if the lower-quality variation performs well initially, over time random exploration will ensure that other, potentially better-performing Arms also get traffic.
 
-> This is a quotation
+Consequently, just like with AB testing, some degree of loss is built-in to the strategy, since we will explore ɛ % of the time, regardless of how much better any particular variation has fared so far.
 
-{% include alert.html text="You can include alert boxes" %}
+The graph below is the result of a simulation of a ɛ-greedy strategy with 1 control and 3 potential variations, of which Arm 1 is the best of the lot. The simulation was run 200 times, and as we can see, by round 200 the algorithm is routing traffic to Arm 1 75% of the time. It hits a ceiling of around 85% (ɛ equals 15%) by around the 300th round.
 
-...and...
+![](/images/multiarmbandit_4.png "bandit in R")
 
-{% include info.html text="You can include info boxes" %}
+While potentially better than A/B testing, this pre-determined ceiling is something of a drawback with Greedy strategies, one that Thompson Sampling (amongst others) tries to improve upon.
 
-## Images
+### Thompson Sampling
 
-![](/images/logo.png "fast.ai's logo")
+With Thompson Sampling, instead of choosing an Arm based upon the highest expected reward at the start of any round, the policy instead samples from the reward distribution of each Arm and directs traffic to the one with the highest sample value at the start of the round. The theory here is quite interesting, so let's unpack this.
 
-## Code
+Firstly, we now model the entire distribution of the conversion rate, instead of just the expected value. Since an individual visitor is either converted or non-converted by the landing page, we can think of conversions as a Bernoulli process. When we sum it up across visitors, we get a Binomial distribution. What we want to know is the distribution of p, the probability of success for the Bernoulli process. To do so, we will use Bayesian updating, with p being updated at the end of every round.
 
-General preformatted text:
+At the start of the experiment we have no information about what the conversion rate for a variation looks like. So, we initialize the algorithm with a completely uninformed prior - plot 1. This encapsulates the idea that the conversion rate for a variation can be anywhere between 0 & 1 with equal probability. As the experiment progresses, and we gain more information about what the actual conversion for a variation look like, we update this initial uninformed guess - hence the distribution centers and becomes narrower around the actual value.
 
-    # Do a thing
-    do_thing()
+![](/images/multiarmbandit_5.png "Conversion rate distribution")
+*Empirical distribution of the conversation rate - a parameter for the Bernoulli.*
 
-Python code and output:
+*(Statistical Aside: we model p as a Beta Distribution, which is the conjugate prior for the Binomial. That essentially means that if the prior for a Binomial random variable has a Beta distribution, the posterior will too! For example: plot 1 is Beta(1,1) and is prior for Round 1. If in round 1 we see 5 successful conversions and 95 failed ones, the posterior becomes Beta(6,96), which is also the prior for round 2!)*
 
-```python
-# Prints '2'
-print(1+1)
-```
+With Greedy policies, we would always pick the variation with the highest expected conversion rate (the vertical line). With Thompson, we instead first take a sample from the distribution and then pick the Arm with the best sample.
 
-    2
+![](/images/multiarmbandit_6.png "sampling thompson")
+*Arm 2 is picked despite having a lower mean conversion rate.*
 
-## Tables
+Despite Arm 1 having a higher expected value, we will use Arm 2, as the sample value in this round is higher (In the next round, another random sample is taken for the posterior distribution). This ensures that Arms that we haven't explored much can be picked with a much higher probability than with Greedy. Essentially, keeping everything else equal, the probability that a variation will get picked is inversely proportional to the uncertainty around it. This dynamism ensures that we don't have a deterministic ceiling on the best variation as we do with greedy policies. Running the same simulation as before - 200 experiments, 1 control and 3 variations - we see that by round 200 the algorithm has converged to picking the best Arm over 90% of the time, and approaches 100% by round 300.
 
-| Column 1 | Column 2 |
-|-|-|
-| A thing | Another thing |
+### Conclusion 
 
-## Footnotes
+Whether you should use Bandits or A/B testing is highly dependent on context. Vanilla Bandit policies have certain additional mathematical assumptions that need to be fulfilled in order to be directly applicable; AB testing is rather robust to violations of these assumptions. A quick simulation of the two policies (AB testing & Thompson Sampling), highlights some of the factors that can help choose between one of the other.
 
-[^1]: This is the footnote.
+*(Note: Regret is simply the expected loss in conversions due to the exploration phase. The lower the better)*
 
+![](/images/multiarmbandit_7.png "regret by procedure")
+*In all these cases, Bandits take longer but have a lower regret than A/B tests*
+
+In general, Bandits are useful for very short experiments (think News Headlines, as the duration in which they are fresh & relevant in short), continuous optimization of site components, Ad targeting (Google uses Bandits extensively with Ad Sense), etc. Statistically, Bandits would likely perform better than A/B tests with higher significance requirements and larger differences in null and alternative hypothesis.
+
+Nevertheless, despite the additional complexity they bring, Bandit policies are quite a useful tool and can provide results superior to A/B testing in many, diverse scenarios.
