@@ -1,6 +1,6 @@
 # Multi-Arm Bandits: a potential alternative to A/B tests
 
-![](/images/multiarmbandit_1 "Cartoon Octopus")
+![](/images/multiarmbandit_1.png "Cartoon Octopus")
 
 Imagine this scenario: you run a website with rare but valuable conversions, and you want to experiment with variations of a landing page in order to maximize your conversion rate. The go-to methodology for such an optimization is A/B testing.
 
@@ -15,7 +15,7 @@ This is where Multi-arm Bandit policies enter the picture.
 
 MABs are a class of problems where you must make choices over a space of possibilities (landing page design, medical drug testing, advertising campaigns) where each choice has a stochastic reward distribution and where the choice of an inferior option results in some sort of loss (lost conversions, or worse health outcomes, etc). While there are many strategies to solve a MAB-type problem, each attempting to minimize the loss, in general, they differ from A/B testing in the sense that they do not wait for a statistically significant result before routing more traffic to the best performing variation at any point in time. In other words, the exploration (learning) & exploitation (earning) phase occur mostly simultaneously with MAB policies, while they are clearly distinct in A/B testing.
 
-![](/images/multiarmbandit_2 "AB and MAB")
+![](/images/multiarmbandit_2.png "AB and MAB")
 *An illustration of phases of an A/B Test (left) and a Multi-Arm Bandit policy (right). Photos from automizy.com*
 
 
